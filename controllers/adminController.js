@@ -881,3 +881,300 @@ exports.createUser = async (req, res) => {
     });
   }
 };
+
+// Reset user password
+exports.resetUserPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    console.log('Resetting password for user ID:', id);
+
+    // Validasi input
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password baru wajib diisi'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password minimal 6 karakter'
+      });
+    }
+
+    // Check if user exists
+    const [users] = await db.query(
+      'SELECT id, nama, email FROM users WHERE id = ?',
+      [id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Hash new password
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await db.query(
+      'UPDATE users SET password = ? WHERE id = ?',
+      [hashedPassword, id]
+    );
+
+    console.log('Password reset successfully for user:', users[0].nama);
+
+    res.json({
+      success: true,
+      message: `Password untuk ${users[0].nama} berhasil direset`
+    });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mereset password',
+      error: error.message
+    });
+  }
+};
+
+// Delete user
+exports.deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log('Deleting user ID:', id);
+
+    // Check if user exists
+    const [users] = await db.query(
+      'SELECT id, nama, role FROM users WHERE id = ?',
+      [id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Prevent deleting super_admin
+    if (users[0].role === 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Super Admin tidak dapat dihapus'
+      });
+    }
+
+    // Check if user has any surat
+    const [suratCount] = await db.query(
+      'SELECT COUNT(*) as total FROM pengajuan_surat WHERE user_id = ?',
+      [id]
+    );
+
+    if (suratCount[0].total > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `User tidak dapat dihapus karena memiliki ${suratCount[0].total} pengajuan surat`
+      });
+    }
+
+    // Delete user
+    await db.query('DELETE FROM users WHERE id = ?', [id]);
+
+    console.log('User deleted successfully:', users[0].nama);
+
+    res.json({
+      success: true,
+      message: `User ${users[0].nama} berhasil dihapus`
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat menghapus user',
+      error: error.message
+    });
+  }
+};
+
+// Update user (role and status only)
+exports.updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, status } = req.body;
+
+    console.log('Updating user ID:', id, { role, status });
+
+    // Check if user exists
+    const [users] = await db.query(
+      'SELECT id, nama, role as current_role FROM users WHERE id = ?',
+      [id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Prevent changing super_admin role
+    if (users[0].current_role === 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Role Super Admin tidak dapat diubah'
+      });
+    }
+
+    // Validate role if provided
+    if (role) {
+      const validRoles = ['super_admin', 'admin', 'verifikator', 'warga'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Role tidak valid'
+        });
+      }
+
+      // Prevent changing to super_admin
+      if (role === 'super_admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Tidak dapat mengubah user menjadi Super Admin'
+        });
+      }
+    }
+
+    // Build update query
+    const updates = [];
+    const values = [];
+
+    if (role) {
+      updates.push('role = ?');
+      values.push(role);
+    }
+
+    if (status !== undefined) {
+      updates.push('status = ?');
+      values.push(status);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tidak ada data yang diupdate'
+      });
+    }
+
+    values.push(id);
+
+    // Update user
+    await db.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    console.log('User updated successfully:', users[0].nama);
+
+    res.json({
+      success: true,
+      message: `User ${users[0].nama} berhasil diupdate`
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengupdate user',
+      error: error.message
+    });
+  }
+};
+
+// Delete single surat
+exports.deleteSurat = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if surat exists
+    const [surat] = await db.query(
+      'SELECT * FROM pengajuan_surat WHERE id = ?',
+      [id]
+    );
+
+    if (surat.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Surat tidak ditemukan'
+      });
+    }
+
+    // Delete surat
+    await db.query('DELETE FROM pengajuan_surat WHERE id = ?', [id]);
+
+    res.json({
+      success: true,
+      message: 'Surat berhasil dihapus'
+    });
+  } catch (error) {
+    console.error('Error deleting surat:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat menghapus surat',
+      error: error.message
+    });
+  }
+};
+
+// Bulk delete surat
+exports.bulkDeleteSurat = async (req, res) => {
+  const connection = await db.getConnection();
+  
+  try {
+    const { ids } = req.body;
+
+    // Validate input
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID surat tidak valid'
+      });
+    }
+
+    // Start transaction
+    await connection.beginTransaction();
+
+    // Delete all surat with given IDs
+    const placeholders = ids.map(() => '?').join(',');
+    const [result] = await connection.query(
+      `DELETE FROM pengajuan_surat WHERE id IN (${placeholders})`,
+      ids
+    );
+
+    // Commit transaction
+    await connection.commit();
+
+    res.json({
+      success: true,
+      message: `${result.affectedRows} surat berhasil dihapus`,
+      deletedCount: result.affectedRows
+    });
+  } catch (error) {
+    // Rollback on error
+    await connection.rollback();
+    console.error('Error bulk deleting surat:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat menghapus surat',
+      error: error.message
+    });
+  } finally {
+    connection.release();
+  }
+};

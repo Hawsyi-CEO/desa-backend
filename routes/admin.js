@@ -27,6 +27,10 @@ router.get('/surat/:id', roleMiddleware('super_admin', 'admin'), adminController
 router.put('/surat/:id/approve', roleMiddleware('super_admin', 'admin'), adminController.approveSurat);
 router.put('/surat/:id/reject', roleMiddleware('super_admin', 'admin'), adminController.rejectSurat);
 
+// Delete Surat - Super Admin only
+router.delete('/surat/:id', roleMiddleware('super_admin'), adminController.deleteSurat);
+router.post('/surat/bulk-delete', roleMiddleware('super_admin'), adminController.bulkDeleteSurat);
+
 // Super Admin only routes
 // Dashboard
 router.get('/dashboard', roleMiddleware('super_admin'), adminController.getDashboard);
@@ -47,6 +51,9 @@ router.delete('/jenis-surat/:id', roleMiddleware('super_admin'), adminController
 router.get('/users', roleMiddleware('super_admin'), adminController.getAllUsers);
 router.get('/users/stats', roleMiddleware('super_admin'), adminController.getUserStats);
 router.post('/users', roleMiddleware('super_admin'), adminController.createUser);
+router.put('/users/:id', roleMiddleware('super_admin'), adminController.updateUser);
 router.put('/users/:id/status', roleMiddleware('super_admin'), adminController.updateUserStatus);
+router.put('/users/:id/reset-password', roleMiddleware('super_admin'), adminController.resetUserPassword);
+router.delete('/users/:id', roleMiddleware('super_admin'), adminController.deleteUser);
 
 module.exports = router;
