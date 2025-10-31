@@ -409,6 +409,98 @@ exports.getDashboard = async (req, res) => {
   }
 };
 
+// Update surat untuk revisi
+exports.updateSuratRevisi = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { data_surat, keperluan } = req.body;
+
+    // First check if surat exists and belongs to user
+    const [allSurat] = await db.query(
+      `SELECT * FROM pengajuan_surat 
+       WHERE id = ? AND user_id = ?`,
+      [id, userId]
+    );
+
+    if (allSurat.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Surat tidak ditemukan'
+      });
+    }
+
+    const currentSurat = allSurat[0];
+
+    // Check if surat is in revision status
+    if (currentSurat.status_surat !== 'revisi_rt' && currentSurat.status_surat !== 'revisi_rw') {
+      return res.status(400).json({
+        success: false,
+        message: `Surat tidak dalam status revisi. Status saat ini: ${currentSurat.status_surat}`,
+        current_status: currentSurat.status_surat
+      });
+    }
+
+    // Check if surat exists and belongs to user with revision status
+    const [surat] = await db.query(
+      `SELECT * FROM pengajuan_surat 
+       WHERE id = ? AND user_id = ? 
+       AND (status_surat = 'revisi_rt' OR status_surat = 'revisi_rw')`,
+      [id, userId]
+    );
+
+    if (surat.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Surat tidak ditemukan atau tidak dalam status revisi'
+      });
+    }
+
+    // Update surat data and reset status to appropriate verification level
+    const dataSuratJson = typeof data_surat === 'string' 
+      ? data_surat 
+      : JSON.stringify(data_surat);
+
+    // Determine new status based on current status
+    let newStatus = 'menunggu_verifikasi_rt'; // Default to RT verification
+    if (surat[0].status_surat === 'revisi_rt') {
+      newStatus = 'menunggu_verifikasi_rt';
+    } else if (surat[0].status_surat === 'revisi_rw') {
+      newStatus = 'menunggu_verifikasi_rw';
+    }
+
+    await db.query(
+      `UPDATE pengajuan_surat 
+       SET data_surat = ?, 
+           keperluan = ?,
+           status_surat = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      [dataSuratJson, keperluan || surat[0].keperluan, newStatus, id]
+    );
+
+    // Log revision to riwayat_surat
+    await db.query(
+      `INSERT INTO riwayat_surat 
+       (pengajuan_id, user_id, action, keterangan, created_at) 
+       VALUES (?, ?, 'revisi', ?, NOW())`,
+      [id, userId, `Surat direvisi dan diajukan kembali dengan status ${newStatus}`]
+    );
+
+    res.json({
+      success: true,
+      message: 'Surat berhasil direvisi dan diajukan kembali'
+    });
+  } catch (error) {
+    console.error('Update surat revisi error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
 // Delete draft surat
 exports.deleteDraftSurat = async (req, res) => {
   try {
@@ -1112,6 +1204,74 @@ exports.deleteWarga = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan saat menghapus data warga',
+      error: error.message
+    });
+  }
+};
+
+// Get notifications for warga
+exports.getNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const [notifications] = await db.query(
+      `SELECT n.*, ps.jenis_surat_id, js.nama_surat 
+       FROM notifications n
+       LEFT JOIN pengajuan_surat ps ON n.pengajuan_id = ps.id
+       LEFT JOIN jenis_surat js ON ps.jenis_surat_id = js.id
+       WHERE n.user_id = ? AND n.is_read = 0
+       ORDER BY n.created_at DESC
+       LIMIT 50`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      data: notifications
+    });
+  } catch (error) {
+    console.error('Error getting notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengambil notifikasi',
+      error: error.message
+    });
+  }
+};
+
+// Mark notification as read
+exports.markNotificationAsRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Verify notification belongs to user
+    const [notif] = await db.query(
+      'SELECT * FROM notifications WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
+
+    if (notif.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notifikasi tidak ditemukan'
+      });
+    }
+
+    await db.query(
+      'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE id = ?',
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Notifikasi ditandai sebagai dibaca'
+    });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan',
       error: error.message
     });
   }

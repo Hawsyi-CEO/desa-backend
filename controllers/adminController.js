@@ -530,6 +530,19 @@ exports.approveSurat = async (req, res) => {
       [id, userId, 'approved', catatan || `Disetujui dengan nomor: ${finalNoSurat}`]
     );
 
+    // Create notification for warga
+    await db.query(
+      `INSERT INTO notifications (user_id, pengajuan_id, type, title, message) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        surat.user_id, 
+        id, 
+        'approved', 
+        'Surat Disetujui',
+        `Surat ${surat.kode_surat || ''} sudah disetujui oleh admin. Silakan ambil di kantor desa dengan nomor surat: ${finalNoSurat}`
+      ]
+    );
+
     res.json({
       success: true,
       message: 'Surat berhasil disetujui (FINAL)',
@@ -627,6 +640,19 @@ exports.rejectSurat = async (req, res) => {
     await db.query(
       'INSERT INTO riwayat_surat (pengajuan_id, user_id, action, keterangan) VALUES (?, ?, ?, ?)',
       [id, userId, 'rejected', `Ditolak oleh Admin: ${catatan}`]
+    );
+
+    // Create notification for warga
+    await db.query(
+      `INSERT INTO notifications (user_id, pengajuan_id, type, title, message) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        surat.user_id, 
+        id, 
+        'rejected', 
+        'Surat Ditolak',
+        `Surat Anda ditolak oleh admin. Alasan: ${catatan}`
+      ]
     );
 
     res.json({

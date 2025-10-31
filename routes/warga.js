@@ -21,11 +21,16 @@ router.get('/data-by-nik/:nik', wargaController.getWargaByNik);
 router.post('/surat', upload.single('lampiran'), wargaController.createPengajuanSurat);
 router.get('/surat', wargaController.getHistorySurat);
 router.get('/surat/:id', wargaController.getSuratDetail);
+router.put('/surat/:id', wargaController.updateSuratRevisi);
 router.delete('/surat/:id', wargaController.deleteDraftSurat);
 
 // Profile
 router.get('/profile', wargaController.getProfile);
 router.put('/profile', wargaController.updateProfile);
 router.post('/change-password', wargaController.changePassword);
+
+// Notifications
+router.get('/notifications', wargaController.getNotifications);
+router.put('/notifications/:id/read', wargaController.markNotificationAsRead);
 
 module.exports = router;

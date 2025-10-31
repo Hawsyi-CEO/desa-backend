@@ -18,24 +18,46 @@ const app = express();
 
 // Middleware
 const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? ['https://suratmuliya.id', 'https://www.suratmuliya.id', 'https://api.suratmuliya.id']
-  : ['http://localhost:5173', 'http://localhost:3000'];
+  ? ['https://suratmuliya.id', 'https://www.suratmuliya.id', 'https://api.suratmuliya.id', 'http://suratmuliya.id', 'http://www.suratmuliya.id']
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
+
+console.log('🌐 CORS - Environment:', process.env.NODE_ENV || 'development');
+console.log('🌐 CORS - Allowed Origins:', allowedOrigins);
 
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
+    console.log('🔍 CORS - Request from origin:', origin);
     
-    if (allowedOrigins.indexOf(origin) === -1 && process.env.NODE_ENV === 'production') {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+    // Allow requests with no origin (mobile apps, Postman, curl, etc.)
+    if (!origin) {
+      console.log('✅ CORS - Allowing request with no origin');
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS - Origin allowed:', origin);
+      return callback(null, true);
+    }
+    
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ CORS - Origin blocked:', origin);
+      const msg = `CORS policy blocked access from: ${origin}. Allowed: ${allowedOrigins.join(', ')}`;
       return callback(new Error(msg), false);
     }
+    
+    // Development mode: allow all
+    console.log('⚠️ CORS - Development mode, allowing all origins');
     return callback(null, true);
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Increase payload limit for file uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

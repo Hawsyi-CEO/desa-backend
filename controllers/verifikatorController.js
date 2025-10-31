@@ -107,10 +107,11 @@ exports.approveSurat = async (req, res) => {
     const { id } = req.params;
     const { keterangan } = req.body;
     const userId = req.user.id;
+    const suratPengantarFile = req.file; // Dari multer upload
 
     // Get verifikator info
     const [user] = await db.query(
-      'SELECT verifikator_level, rt, rw FROM users WHERE id = ?',
+      'SELECT verifikator_level, rt, rw, nama FROM users WHERE id = ?',
       [userId]
     );
 
@@ -141,6 +142,14 @@ exports.approveSurat = async (req, res) => {
     }
 
     const surat = pengajuan[0];
+
+    // Validasi: Surat pengantar WAJIB diupload
+    if (!suratPengantarFile) {
+      return res.status(400).json({
+        success: false,
+        message: 'Surat pengantar harus diupload sebelum menyetujui'
+      });
+    }
 
     // Validasi: verifikator RT hanya bisa approve surat dari RT-nya
     if (verifikator_level === 'rt' && surat.pemohon_rt !== rt) {
@@ -199,28 +208,35 @@ exports.approveSurat = async (req, res) => {
       [userId, keterangan || 'Disetujui', id, verifikator_level]
     );
 
-    // Update pengajuan_surat
+    // Update pengajuan_surat dengan surat pengantar
+    const suratPengantarPath = suratPengantarFile.filename;
+    const suratPengantarField = `surat_pengantar_${verifikator_level}`;
+    const tanggalUploadField = `tanggal_upload_pengantar_${verifikator_level}`;
+    
     await db.query(
       `UPDATE pengajuan_surat 
        SET status_surat = ?,
-           current_verification_level = ?
+           current_verification_level = ?,
+           ${suratPengantarField} = ?,
+           ${tanggalUploadField} = NOW()
        WHERE id = ?`,
-      [nextStatus, nextLevel, id]
+      [nextStatus, nextLevel, suratPengantarPath, id]
     );
 
     // Add to riwayat_surat
     await db.query(
       `INSERT INTO riwayat_surat (pengajuan_id, user_id, action, keterangan)
        VALUES (?, ?, ?, ?)`,
-      [id, userId, 'verified', `Diverifikasi oleh ${verifikator_level.toUpperCase()}: ${keterangan || 'Disetujui'}`]
+      [id, userId, 'verified', `Diverifikasi oleh ${verifikator_level.toUpperCase()}: ${keterangan || 'Disetujui'} (Surat pengantar: ${suratPengantarPath})`]
     );
 
     res.json({
       success: true,
-      message: `Surat berhasil diverifikasi (${verifikator_level.toUpperCase()})`,
+      message: `Surat berhasil diverifikasi (${verifikator_level.toUpperCase()}) dengan surat pengantar`,
       data: {
         next_status: nextStatus,
-        next_level: nextLevel
+        next_level: nextLevel,
+        surat_pengantar: suratPengantarPath
       }
     });
   } catch (error) {
@@ -486,5 +502,203 @@ exports.getDashboard = async (req, res) => {
     });
   }
 };
+
+// Change Password untuk Verifikator
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { oldPassword, newPassword } = req.body;
+
+    // Validation
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password lama dan password baru harus diisi'
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password baru minimal 8 karakter'
+      });
+    }
+
+    // Get user
+    const [users] = await db.query(
+      'SELECT password FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Verify old password
+    const bcrypt = require('bcryptjs');
+    const isMatch = await bcrypt.compare(oldPassword, users[0].password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Password lama tidak sesuai'
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await db.query(
+      'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
+      [hashedPassword, userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Password berhasil diubah'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Get Notifications untuk Verifikator
+exports.getNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get verifikator info
+    const [user] = await db.query(
+      'SELECT role, verifikator_level, rt, rw, nama FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (user.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    const { role, verifikator_level, rt, rw } = user[0];
+
+    // Jika bukan verifikator, return empty notifications
+    if (role !== 'verifikator' && role !== 'verifikator_rt' && role !== 'verifikator_rw') {
+      return res.json({
+        success: true,
+        data: [],
+        unread_count: 0
+      });
+    }
+
+    // Determine target status based on level
+    let targetStatus, rtFilter, rwFilter;
+
+    // Check verifikator_level atau role
+    const level = verifikator_level || (role === 'verifikator_rt' ? 'rt' : role === 'verifikator_rw' ? 'rw' : null);
+
+    if (level === 'rt' || role === 'verifikator_rt') {
+      targetStatus = 'menunggu_verifikasi_rt';
+      rtFilter = rt;
+      rwFilter = rw;
+    } else if (level === 'rw' || role === 'verifikator_rw') {
+      targetStatus = 'menunggu_verifikasi_rw';
+      rtFilter = null;
+      rwFilter = rw;
+    } else {
+      // Default: return empty
+      return res.json({
+        success: true,
+        data: [],
+        unread_count: 0
+      });
+    }
+
+    // Get recent surat yang menunggu verifikasi (last 24 hours)
+    let query = `
+      SELECT 
+        ps.id,
+        ps.no_surat,
+        ps.created_at,
+        js.nama_surat,
+        u.nama as nama_pemohon
+      FROM pengajuan_surat ps
+      JOIN jenis_surat js ON ps.jenis_surat_id = js.id
+      JOIN users u ON ps.user_id = u.id
+      WHERE ps.status_surat = ?
+      AND ps.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    `;
+
+    const params = [targetStatus];
+
+    if (level === 'rt' || role === 'verifikator_rt') {
+      query += ' AND u.rt = ? AND u.rw = ?';
+      params.push(rtFilter, rwFilter);
+    } else {
+      query += ' AND u.rw = ?';
+      params.push(rwFilter);
+    }
+
+    query += ' ORDER BY ps.created_at DESC LIMIT 10';
+
+    const [suratBaru] = await db.query(query, params);
+
+    // Format notifications
+    const notifications = suratBaru.map(surat => {
+      const timeAgo = getTimeAgo(surat.created_at);
+      return {
+        id: surat.id,
+        title: 'Surat Baru Menunggu',
+        message: `${surat.nama_surat} dari ${surat.nama_pemohon}`,
+        time: timeAgo,
+        read: false,
+        type: 'new_surat',
+        data: {
+          surat_id: surat.id,
+          no_surat: surat.no_surat
+        }
+      };
+    });
+
+    res.json({
+      success: true,
+      data: notifications,
+      unread_count: notifications.length
+    });
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Helper function untuk format waktu
+function getTimeAgo(date) {
+  const now = new Date();
+  const past = new Date(date);
+  const diffMs = now - past;
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'Baru saja';
+  if (diffMins < 60) return `${diffMins} menit yang lalu`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} jam yang lalu`;
+  
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} hari yang lalu`;
+}
 
 module.exports = exports;
