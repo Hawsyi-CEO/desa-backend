@@ -17,8 +17,21 @@ const wargaUniversalRoutes = require('./routes/wargaUniversal');
 const app = express();
 
 // Middleware
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? ['https://suratmuliya.id', 'https://www.suratmuliya.id', 'https://api.suratmuliya.id']
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
 app.use(cors({
-  origin: true, // Allow all origins in development
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1 && process.env.NODE_ENV === 'production') {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
 app.use(express.json());
