@@ -1,0 +1,47 @@
+const db = require('./config/database');
+
+async function runMigrations() {
+  try {
+    // Wait a bit for database pool to be ready
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log('🔄 Running database migrations...');
+    
+    // Create formulir_cetak table
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS formulir_cetak (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        nama_formulir varchar(255) NOT NULL,
+        kategori enum('kependudukan','kesehatan','usaha','umum') NOT NULL DEFAULT 'umum',
+        deskripsi text DEFAULT NULL,
+        file_name varchar(255) NOT NULL,
+        file_path varchar(500) NOT NULL,
+        file_type varchar(10) NOT NULL,
+        file_size bigint(20) NOT NULL DEFAULT 0,
+        is_fillable tinyint(1) NOT NULL DEFAULT 0,
+        field_mapping json DEFAULT NULL,
+        urutan int(11) NOT NULL DEFAULT 0,
+        is_active tinyint(1) NOT NULL DEFAULT 1,
+        jumlah_download int(11) NOT NULL DEFAULT 0,
+        created_by int(11) DEFAULT NULL,
+        created_at timestamp NOT NULL DEFAULT current_timestamp(),
+        updated_at timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+        PRIMARY KEY (id),
+        KEY idx_kategori (kategori),
+        KEY idx_is_active (is_active),
+        KEY idx_created_by (created_by),
+        KEY idx_kategori_active (kategori, is_active),
+        KEY idx_urutan (urutan),
+        CONSTRAINT fk_formulir_cetak_user FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `;
+    
+    await db.query(createTableSQL);
+    console.log('✅ Table formulir_cetak ready');
+    
+  } catch (error) {
+    console.error('❌ Migration error:', error.message);
+    // Don't throw - let server continue
+  }
+}
+
+module.exports = runMigrations;
