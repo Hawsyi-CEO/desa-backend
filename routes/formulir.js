@@ -58,14 +58,9 @@ router.get('/', formulirController.getAllFormulir);
 router.get('/:id', formulirController.getFormulirById);
 router.get('/:id/download', formulirController.downloadFormulir);
 
-// PDF fillable routes
-router.get('/:id/fields', formulirController.getPDFFields); // Get PDF form fields
-router.post('/:id/fill', formulirController.fillPDF); // Fill PDF with data
-
 // Super Admin only routes
 router.post('/', roleMiddleware('super_admin'), upload.single('file'), formulirController.uploadFormulir);
 router.put('/:id', roleMiddleware('super_admin'), formulirController.updateFormulir);
 router.delete('/:id', roleMiddleware('super_admin'), formulirController.deleteFormulir);
-router.patch('/:id/mapping', roleMiddleware('super_admin'), formulirController.updateFieldMapping); // Update field mapping
 
 module.exports = router;
