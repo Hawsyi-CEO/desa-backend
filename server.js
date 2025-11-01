@@ -12,6 +12,7 @@ const adminRoutes = require('./routes/admin');
 const verifikatorRoutes = require('./routes/verifikator');
 const wargaRoutes = require('./routes/warga');
 const wargaUniversalRoutes = require('./routes/wargaUniversal');
+const formulirRoutes = require('./routes/formulir');
 
 // Initialize app
 const app = express();
@@ -50,7 +51,7 @@ app.use(cors({
     return callback(null, true);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
@@ -68,6 +69,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/verifikator', verifikatorRoutes);
 app.use('/api/warga', wargaRoutes);
 app.use('/api/warga-universal', wargaUniversalRoutes);
+app.use('/api/formulir', formulirRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
