@@ -1122,10 +1122,10 @@ exports.createWarga = async (req, res) => {
     console.log('Creating new warga:', { nik, nama, email, rt, rw });
 
     // Validasi required fields
-    if (!nik || !nama || !email) {
+    if (!nik || !nama) {
       return res.status(400).json({
         success: false,
-        message: 'NIK, nama, dan email wajib diisi'
+        message: 'NIK dan nama wajib diisi'
       });
     }
 
@@ -1142,17 +1142,19 @@ exports.createWarga = async (req, res) => {
       });
     }
 
-    // Check if email already exists
-    const [existingEmail] = await db.query(
-      'SELECT id FROM users WHERE email = ?',
-      [email]
-    );
+    // Check if email already exists (only if email is provided)
+    if (email) {
+      const [existingEmail] = await db.query(
+        'SELECT id FROM users WHERE email = ?',
+        [email]
+      );
 
-    if (existingEmail.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email sudah terdaftar'
-      });
+      if (existingEmail.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email sudah terdaftar'
+        });
+      }
     }
 
     // Hash password if provided, otherwise use default
@@ -1163,6 +1165,7 @@ exports.createWarga = async (req, res) => {
 
     // Convert empty strings to null for optional fields
     const cleanData = {
+      email: email || null,
       alamat: alamat || null,
       rt: rt || null,
       rw: rw || null,
@@ -1191,7 +1194,7 @@ exports.createWarga = async (req, res) => {
         status, created_at
       ) VALUES (?, ?, ?, ?, 'warga', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'aktif', NOW())`,
       [
-        nik, nama, email, hashedPassword, 
+        nik, nama, cleanData.email, hashedPassword, 
         cleanData.alamat, cleanData.rt, cleanData.rw, cleanData.dusun,
         cleanData.tempat_lahir, cleanData.tanggal_lahir, cleanData.jenis_kelamin, cleanData.agama,
         cleanData.pekerjaan, cleanData.pendidikan, cleanData.status_perkawinan, cleanData.golongan_darah,

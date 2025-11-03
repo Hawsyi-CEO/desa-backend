@@ -808,11 +808,11 @@ exports.createUser = async (req, res) => {
 
     console.log('Creating new user:', { nik, nama, email, role });
 
-    // Validasi required fields
-    if (!nik || !nama || !email || !role) {
+    // Validasi required fields - email TIDAK wajib
+    if (!nik || !nama || !role) {
       return res.status(400).json({
         success: false,
-        message: 'NIK, nama, email, dan role wajib diisi'
+        message: 'NIK, nama, dan role wajib diisi'
       });
     }
 
@@ -838,17 +838,19 @@ exports.createUser = async (req, res) => {
       });
     }
 
-    // Check if email already exists
-    const [existingEmail] = await db.query(
-      'SELECT id FROM users WHERE email = ?',
-      [email]
-    );
+    // Check if email already exists (hanya jika email diisi)
+    if (email) {
+      const [existingEmail] = await db.query(
+        'SELECT id FROM users WHERE email = ?',
+        [email]
+      );
 
-    if (existingEmail.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email sudah terdaftar'
-      });
+      if (existingEmail.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email sudah terdaftar'
+        });
+      }
     }
 
     // Hash password
@@ -859,6 +861,7 @@ exports.createUser = async (req, res) => {
 
     // Convert empty strings to null
     const cleanData = {
+      email: email || null,
       no_telepon: no_telepon || null,
       alamat: alamat || null,
       rt: rt || null,
@@ -889,7 +892,7 @@ exports.createUser = async (req, res) => {
         hubungan_keluarga, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
-        nik, nama, email, hashedPassword, role, cleanData.status,
+        nik, nama, cleanData.email, hashedPassword, role, cleanData.status,
         cleanData.no_telepon, cleanData.alamat, cleanData.rt, cleanData.rw, cleanData.dusun,
         cleanData.tempat_lahir, cleanData.tanggal_lahir, cleanData.jenis_kelamin,
         cleanData.agama, cleanData.pekerjaan, cleanData.pendidikan, cleanData.status_perkawinan,
