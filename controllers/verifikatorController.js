@@ -126,7 +126,8 @@ exports.approveSurat = async (req, res) => {
 
     // Get pengajuan surat
     const [pengajuan] = await db.query(
-      `SELECT ps.*, u.rt as pemohon_rt, u.rw as pemohon_rw, js.require_rt_verification, js.require_rw_verification
+      `SELECT ps.*, u.rt as pemohon_rt, u.rw as pemohon_rw, 
+              js.require_rt_verification, js.require_rw_verification, js.kode_surat
        FROM pengajuan_surat ps
        JOIN users u ON ps.user_id = u.id
        JOIN jenis_surat js ON ps.jenis_surat_id = js.id
@@ -230,6 +231,30 @@ exports.approveSurat = async (req, res) => {
       [id, userId, 'verified', `Diverifikasi oleh ${verifikator_level.toUpperCase()}: ${keterangan || 'Disetujui'} (Surat pengantar: ${suratPengantarPath})`]
     );
 
+    // 🔔 Create notification for warga
+    let notifMessage = '';
+    if (verifikator_level === 'rt') {
+      if (surat.require_rw_verification) {
+        notifMessage = `Surat ${surat.kode_surat || ''} telah disetujui oleh RT ${rt} dan sedang menunggu verifikasi RW ${surat.pemohon_rw}`;
+      } else {
+        notifMessage = `Surat ${surat.kode_surat || ''} telah disetujui oleh RT ${rt} dan sedang menunggu persetujuan Kepala Desa`;
+      }
+    } else if (verifikator_level === 'rw') {
+      notifMessage = `Surat ${surat.kode_surat || ''} telah disetujui oleh RW ${rw} dan sedang menunggu persetujuan Kepala Desa`;
+    }
+
+    await db.query(
+      `INSERT INTO notifications (user_id, pengajuan_id, type, title, message) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        surat.user_id, 
+        id, 
+        'verified', 
+        `Surat Disetujui ${verifikator_level.toUpperCase()}`,
+        notifMessage
+      ]
+    );
+
     res.json({
       success: true,
       message: `Surat berhasil diverifikasi (${verifikator_level.toUpperCase()}) dengan surat pengantar`,
@@ -280,7 +305,8 @@ exports.rejectSurat = async (req, res) => {
 
     // Get pengajuan surat
     const [pengajuan] = await db.query(
-      `SELECT ps.*, u.rt as pemohon_rt, u.rw as pemohon_rw, js.require_rt_verification
+      `SELECT ps.*, u.rt as pemohon_rt, u.rw as pemohon_rw, 
+              js.require_rt_verification, js.kode_surat
        FROM pengajuan_surat ps
        JOIN users u ON ps.user_id = u.id
        JOIN jenis_surat js ON ps.jenis_surat_id = js.id
@@ -358,6 +384,30 @@ exports.rejectSurat = async (req, res) => {
       `INSERT INTO riwayat_surat (pengajuan_id, user_id, action, keterangan)
        VALUES (?, ?, ?, ?)`,
       [id, userId, 'rejected', `Ditolak oleh ${verifikator_level.toUpperCase()}: ${keterangan}`]
+    );
+
+    // 🔔 Create notification for warga
+    let notifMessage = '';
+    if (verifikator_level === 'rt') {
+      notifMessage = `Surat ${surat.kode_surat || ''} ditolak oleh RT ${rt}. Alasan: ${keterangan}. Silakan perbaiki dan ajukan kembali.`;
+    } else if (verifikator_level === 'rw') {
+      if (surat.require_rt_verification) {
+        notifMessage = `Surat ${surat.kode_surat || ''} ditolak oleh RW ${rw}. Alasan: ${keterangan}. Surat dikembalikan ke RT untuk verifikasi ulang.`;
+      } else {
+        notifMessage = `Surat ${surat.kode_surat || ''} ditolak oleh RW ${rw}. Alasan: ${keterangan}. Silakan perbaiki dan ajukan kembali.`;
+      }
+    }
+
+    await db.query(
+      `INSERT INTO notifications (user_id, pengajuan_id, type, title, message) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        surat.user_id, 
+        id, 
+        'rejected', 
+        `Surat Ditolak ${verifikator_level.toUpperCase()}`,
+        notifMessage
+      ]
     );
 
     res.json({

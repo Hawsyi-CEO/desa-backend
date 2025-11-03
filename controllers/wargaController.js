@@ -80,9 +80,20 @@ exports.getJenisSurat = async (req, res) => {
       ORDER BY nama_surat`
     );
 
+    // Convert require_verification to boolean (MySQL returns 1/0)
+    const formattedData = jenisSurat.map(jenis => ({
+      ...jenis,
+      require_verification: Boolean(jenis.require_verification)
+    }));
+
+    console.log('📋 Jenis surat for warga:', formattedData.map(j => ({
+      nama: j.nama_surat,
+      require_verification: j.require_verification
+    })));
+
     res.json({
       success: true,
-      data: jenisSurat
+      data: formattedData
     });
   } catch (error) {
     console.error('Get jenis surat error:', error);
@@ -134,6 +145,13 @@ exports.createPengajuanSurat = async (req, res) => {
 
     const jenis = jenisSurat[0];
     
+    // Get user data (for RT/RW info in notification)
+    const [userData] = await db.query(
+      'SELECT rt, rw FROM users WHERE id = ?',
+      [userId]
+    );
+    const user = userData[0];
+    
     // Determine initial status and verification level based on requirements
     let initialStatus;
     let initialLevel = null;
@@ -143,25 +161,36 @@ exports.createPengajuanSurat = async (req, res) => {
     const requireRW = jenis.require_rw_verification || false;
     const requireVerification = jenis.require_verification || false;
 
-    // Logic: Jika tidak butuh verifikasi apapun, langsung ke admin
-    if (!requireVerification && !requireRT && !requireRW) {
-      initialStatus = 'disetujui';
-      initialLevel = 'completed';
+    console.log('🔍 Verification Requirements:', {
+      jenis_surat: jenis.nama_surat,
+      require_verification: requireVerification,
+      require_rt_verification: requireRT,
+      require_rw_verification: requireRW
+    });
+
+    // Logic: Jika require_verification = false, langsung ke admin tanpa verifikasi RT/RW
+    if (!requireVerification) {
+      initialStatus = 'menunggu_admin';
+      initialLevel = 'admin';
+      console.log('✅ Surat tidak butuh verifikasi → langsung ke admin');
     } 
-    // Jika butuh RT verification
+    // Jika butuh verifikasi dan ada RT verification
     else if (requireRT) {
       initialStatus = 'menunggu_verifikasi_rt';
       initialLevel = 'rt';
+      console.log('✅ Surat butuh verifikasi RT → ke RT terlebih dahulu');
     } 
-    // Jika tidak butuh RT tapi butuh RW
+    // Jika butuh verifikasi tapi tidak ada RT, cek RW
     else if (requireRW) {
       initialStatus = 'menunggu_verifikasi_rw';
       initialLevel = 'rw';
+      console.log('✅ Surat butuh verifikasi RW → ke RW terlebih dahulu');
     } 
-    // Default: langsung ke admin (backward compatibility)
+    // Jika butuh verifikasi tapi tidak ada RT/RW setting, langsung ke admin
     else {
       initialStatus = 'menunggu_admin';
       initialLevel = 'admin';
+      console.log('✅ Surat butuh verifikasi tapi tidak ada RT/RW → langsung ke admin');
     }
 
     // Create pengajuan
@@ -175,21 +204,26 @@ exports.createPengajuanSurat = async (req, res) => {
     const pengajuanId = result.insertId;
 
     // Create verification flow steps (hanya jika butuh verifikasi)
-    if (requireRT || requireRW || requireVerification) {
+    if (requireVerification && (requireRT || requireRW)) {
       const verificationSteps = [];
+      
+      console.log('📋 Creating verification flow...');
       
       // Step 1: RT verification (if required)
       if (requireRT) {
         verificationSteps.push([pengajuanId, 'rt', sequenceOrder++, 'pending']);
+        console.log('  ✓ Added RT verification step');
       }
       
       // Step 2: RW verification (if required)
       if (requireRW) {
         verificationSteps.push([pengajuanId, 'rw', sequenceOrder++, 'pending']);
+        console.log('  ✓ Added RW verification step');
       }
       
-      // Step 3: Admin verification (always required if needs verification)
+      // Step 3: Admin verification (always required if needs RT/RW verification)
       verificationSteps.push([pengajuanId, 'admin', sequenceOrder++, 'pending']);
+      console.log('  ✓ Added Admin verification step');
       
       // Insert all verification steps
       if (verificationSteps.length > 0) {
@@ -199,7 +233,10 @@ exports.createPengajuanSurat = async (req, res) => {
            VALUES ?`,
           [verificationSteps]
         );
+        console.log(`✅ Created ${verificationSteps.length} verification steps`);
       }
+    } else {
+      console.log('⏭️ No verification flow needed (require_verification = false)');
     }
 
     // Add history
@@ -208,13 +245,40 @@ exports.createPengajuanSurat = async (req, res) => {
       [pengajuanId, userId, 'created', 'Pengajuan surat dibuat']
     );
 
+    // 🔔 Create notification for warga (confirmation)
+    let notifMessage = '';
+    if (!requireVerification) {
+      notifMessage = `Pengajuan surat ${jenis.nama_surat} berhasil dibuat dan akan langsung diproses oleh Kepala Desa (tanpa verifikasi RT/RW)`;
+    } else if (requireRT) {
+      notifMessage = `Pengajuan surat ${jenis.nama_surat} berhasil dibuat dan menunggu verifikasi dari RT ${user.rt}`;
+    } else if (requireRW) {
+      notifMessage = `Pengajuan surat ${jenis.nama_surat} berhasil dibuat dan menunggu verifikasi dari RW ${user.rw}`;
+    } else {
+      notifMessage = `Pengajuan surat ${jenis.nama_surat} berhasil dibuat dan menunggu persetujuan admin`;
+    }
+
+    await db.query(
+      `INSERT INTO notifications (user_id, pengajuan_id, type, title, message) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [userId, pengajuanId, 'created', 'Surat Berhasil Diajukan', notifMessage]
+    );
+
+    console.log('✅ Pengajuan surat berhasil dibuat:', {
+      id: pengajuanId,
+      status: initialStatus,
+      level: initialLevel,
+      require_verification: requireVerification,
+      require_rt: requireRT,
+      require_rw: requireRW
+    });
+
     res.status(201).json({
       success: true,
       message: 'Pengajuan surat berhasil dibuat',
       data: {
         id: pengajuanId,
         status: initialStatus,
-        verification_required: requireRT || requireRW || requireVerification,
+        verification_required: requireVerification,
         verification_flow: {
           require_rt: requireRT,
           require_rw: requireRW,

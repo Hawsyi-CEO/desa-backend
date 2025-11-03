@@ -182,9 +182,20 @@ exports.updateJenisSurat = async (req, res) => {
     const { id } = req.params;
     const { nama_surat, kode_surat, deskripsi, format_nomor, kalimat_pembuka, template_konten, fields, require_verification, status } = req.body;
 
+    // 🔧 FIX: Jika require_verification diset false, otomatis set RT/RW verification juga false
+    // Ini mencegah database inconsistency
+    const requireRT = require_verification ? 1 : 0;
+    const requireRW = require_verification ? 1 : 0;
+
+    console.log(`📝 Update Jenis Surat ID ${id}:`);
+    console.log(`   require_verification: ${require_verification}`);
+    console.log(`   require_rt_verification: ${requireRT}`);
+    console.log(`   require_rw_verification: ${requireRW}`);
+
     await db.query(
       `UPDATE jenis_surat 
-       SET nama_surat = ?, kode_surat = ?, deskripsi = ?, format_nomor = ?, kalimat_pembuka = ?, template_konten = ?, fields = ?, require_verification = ?, status = ?
+       SET nama_surat = ?, kode_surat = ?, deskripsi = ?, format_nomor = ?, kalimat_pembuka = ?, template_konten = ?, fields = ?, 
+           require_verification = ?, require_rt_verification = ?, require_rw_verification = ?, status = ?
        WHERE id = ?`,
       [
         nama_surat, 
@@ -195,6 +206,8 @@ exports.updateJenisSurat = async (req, res) => {
         template_konten, 
         JSON.stringify(fields), 
         require_verification, 
+        requireRT,
+        requireRW,
         status, 
         id
       ]

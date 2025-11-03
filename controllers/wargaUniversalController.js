@@ -313,15 +313,35 @@ exports.getSuratDetail = async (req, res) => {
 exports.getJenisSurat = async (req, res) => {
   try {
     const [jenisSurat] = await db.query(
-      `SELECT id, nama_surat, kode_surat, deskripsi, fields, template_konten, kalimat_pembuka
+      `SELECT 
+        id, 
+        nama_surat, 
+        kode_surat, 
+        deskripsi, 
+        fields, 
+        template_konten, 
+        kalimat_pembuka,
+        format_nomor,
+        require_verification
        FROM jenis_surat 
        WHERE status = 'aktif'
        ORDER BY nama_surat ASC`
     );
 
+    // Convert require_verification to boolean (MySQL returns 1/0)
+    const formattedData = jenisSurat.map(jenis => ({
+      ...jenis,
+      require_verification: Boolean(jenis.require_verification)
+    }));
+
+    console.log('📋 Jenis surat for warga universal:', formattedData.map(j => ({
+      nama: j.nama_surat,
+      require_verification: j.require_verification
+    })));
+
     res.json({
       success: true,
-      data: jenisSurat
+      data: formattedData
     });
   } catch (error) {
     console.error('Error getting jenis surat:', error);
