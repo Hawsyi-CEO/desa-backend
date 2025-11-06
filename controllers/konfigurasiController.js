@@ -28,6 +28,8 @@ exports.getKonfigurasi = async (req, res) => {
 // Update konfigurasi surat
 exports.updateKonfigurasi = async (req, res) => {
   try {
+    console.log('📥 Received konfigurasi update:', req.body); // Debug
+    
     const {
       nama_kabupaten,
       nama_kecamatan,
@@ -44,9 +46,23 @@ exports.updateKonfigurasi = async (req, res) => {
       nama_sekretaris,
       nip_sekretaris,
       nama_camat,
+      nip_camat,
       nama_kapolsek,
-      nama_danramil
+      nip_kapolsek,
+      nama_danramil,
+      nip_danramil
     } = req.body;
+    
+    console.log('✅ Extracted values:', {
+      nama_sekretaris,
+      nip_sekretaris,
+      nama_camat,
+      nip_camat,
+      nama_kapolsek,
+      nip_kapolsek,
+      nama_danramil,
+      nip_danramil
+    }); // Debug
 
     // Check if config exists
     const [existing] = await db.query('SELECT id FROM konfigurasi_surat LIMIT 1');
@@ -71,13 +87,42 @@ exports.updateKonfigurasi = async (req, res) => {
           nama_sekretaris,
           nip_sekretaris,
           nama_camat,
+          nip_camat,
           nama_kapolsek,
-          nama_danramil
+          nip_kapolsek,
+          nama_danramil,
+          nip_danramil
         }
       );
     } else {
       // Update existing config
-      await db.query(
+      const params = [
+        nama_kabupaten,
+        nama_kecamatan,
+        nama_desa,
+        nama_desa_penandatangan,
+        alamat_kantor,
+        kota,
+        kode_pos,
+        telepon,
+        email,
+        jabatan_ttd,
+        nama_ttd,
+        nip_ttd,
+        nama_sekretaris,
+        nip_sekretaris,
+        nama_camat,
+        nip_camat,
+        nama_kapolsek,
+        nip_kapolsek,
+        nama_danramil,
+        nip_danramil,
+        existing[0].id
+      ];
+      
+      console.log('🔍 UPDATE parameters:', params); // Debug
+      
+      const [result] = await db.query(
         `UPDATE konfigurasi_surat SET 
           nama_kabupaten = ?,
           nama_kecamatan = ?,
@@ -94,30 +139,16 @@ exports.updateKonfigurasi = async (req, res) => {
           nama_sekretaris = ?,
           nip_sekretaris = ?,
           nama_camat = ?,
+          nip_camat = ?,
           nama_kapolsek = ?,
-          nama_danramil = ?
+          nip_kapolsek = ?,
+          nama_danramil = ?,
+          nip_danramil = ?
         WHERE id = ?`,
-        [
-          nama_kabupaten,
-          nama_kecamatan,
-          nama_desa,
-          nama_desa_penandatangan,
-          alamat_kantor,
-          kota,
-          kode_pos,
-          telepon,
-          email,
-          jabatan_ttd,
-          nama_ttd,
-          nip_ttd,
-          nama_sekretaris,
-          nip_sekretaris,
-          nama_camat,
-          nama_kapolsek,
-          nama_danramil,
-          existing[0].id
-        ]
+        params
       );
+      
+      console.log('✅ UPDATE result:', result); // Debug
     }
 
     const [updated] = await db.query('SELECT * FROM konfigurasi_surat ORDER BY id DESC LIMIT 1');

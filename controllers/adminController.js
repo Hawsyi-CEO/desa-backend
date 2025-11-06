@@ -287,6 +287,10 @@ exports.getAllSurat = async (req, res) => {
         js.template_konten,
         js.kalimat_pembuka,
         js.format_nomor,
+        js.penandatangan,
+        js.layout_ttd,
+        js.show_materai,
+        js.paper_size,
         u.nama as nama_pemohon,
         u.nik as nik_pemohon,
         u.alamat as alamat_pemohon,
@@ -346,6 +350,10 @@ exports.getSuratDetail = async (req, res) => {
         js.kalimat_pembuka,
         js.template_konten,
         js.fields,
+        js.penandatangan,
+        js.layout_ttd,
+        js.show_materai,
+        js.paper_size,
         u.nama as nama_pemohon,
         u.nik as nik_pemohon,
         u.alamat as alamat_pemohon,
@@ -377,7 +385,11 @@ exports.getSuratDetail = async (req, res) => {
         format_nomor: surat[0].format_nomor,
         kalimat_pembuka: surat[0].kalimat_pembuka,
         template_konten: surat[0].template_konten,
-        fields: surat[0].fields
+        fields: surat[0].fields,
+        penandatangan: surat[0].penandatangan,
+        layout_ttd: surat[0].layout_ttd,
+        show_materai: surat[0].show_materai,
+        paper_size: surat[0].paper_size
       }
     };
 
