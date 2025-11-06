@@ -2,13 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
-const runMigrations = require('./migrations');
 
 // Load environment variables
 dotenv.config();
-
-// Run migrations
-runMigrations();
 
 // Import routes
 const authRoutes = require('./routes/auth');
