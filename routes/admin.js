@@ -40,6 +40,9 @@ router.get('/dashboard', roleMiddleware('super_admin'), adminController.getDashb
 router.get('/konfigurasi', roleMiddleware('super_admin'), konfigurasiController.getKonfigurasi);
 router.put('/konfigurasi', roleMiddleware('super_admin'), konfigurasiController.updateKonfigurasi);
 router.post('/konfigurasi/upload-logo', roleMiddleware('super_admin'), upload.single('logo'), konfigurasiController.uploadLogo);
+router.get('/rt-rw-options', roleMiddleware('super_admin'), konfigurasiController.getRTRWOptions);
+router.get('/rt-name/:rtNumber', roleMiddleware('super_admin'), konfigurasiController.getRTName);
+router.get('/rw-name/:rwNumber', roleMiddleware('super_admin'), konfigurasiController.getRWName);
 
 // Jenis Surat Management
 router.get('/jenis-surat', roleMiddleware('super_admin'), adminController.getJenisSurat);

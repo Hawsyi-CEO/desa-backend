@@ -42,7 +42,10 @@ exports.updateKonfigurasi = async (req, res) => {
       nama_ttd,
       nip_ttd,
       nama_sekretaris,
-      nip_sekretaris
+      nip_sekretaris,
+      nama_camat,
+      nama_kapolsek,
+      nama_danramil
     } = req.body;
 
     // Check if config exists
@@ -66,7 +69,10 @@ exports.updateKonfigurasi = async (req, res) => {
           nama_ttd,
           nip_ttd,
           nama_sekretaris,
-          nip_sekretaris
+          nip_sekretaris,
+          nama_camat,
+          nama_kapolsek,
+          nama_danramil
         }
       );
     } else {
@@ -86,7 +92,10 @@ exports.updateKonfigurasi = async (req, res) => {
           nama_ttd = ?,
           nip_ttd = ?,
           nama_sekretaris = ?,
-          nip_sekretaris = ?
+          nip_sekretaris = ?,
+          nama_camat = ?,
+          nama_kapolsek = ?,
+          nama_danramil = ?
         WHERE id = ?`,
         [
           nama_kabupaten,
@@ -103,6 +112,9 @@ exports.updateKonfigurasi = async (req, res) => {
           nip_ttd,
           nama_sekretaris,
           nip_sekretaris,
+          nama_camat,
+          nama_kapolsek,
+          nama_danramil,
           existing[0].id
         ]
       );
@@ -148,6 +160,113 @@ exports.uploadLogo = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Gagal upload logo'
+    });
+  }
+};
+
+// Get RT/RW options from users table
+exports.getRTRWOptions = async (req, res) => {
+  try {
+    // Get unique RT numbers
+    const [rtRows] = await db.query(`
+      SELECT DISTINCT rt 
+      FROM users 
+      WHERE rt IS NOT NULL 
+        AND rt != '' 
+        AND role = 'verifikator'
+        AND verifikator_level = 'rt'
+      ORDER BY rt ASC
+    `);
+    
+    // Get unique RW numbers
+    const [rwRows] = await db.query(`
+      SELECT DISTINCT rw 
+      FROM users 
+      WHERE rw IS NOT NULL 
+        AND rw != '' 
+        AND role = 'verifikator'
+        AND verifikator_level = 'rw'
+      ORDER BY rw ASC
+    `);
+
+    res.json({
+      success: true,
+      rt: rtRows.map(row => row.rt),
+      rw: rwRows.map(row => row.rw)
+    });
+  } catch (error) {
+    console.error('Error getting RT/RW options:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server'
+    });
+  }
+};
+
+// Get RT name by RT number
+exports.getRTName = async (req, res) => {
+  try {
+    const { rtNumber } = req.params;
+    
+    const [rows] = await db.query(`
+      SELECT nama_lengkap 
+      FROM users 
+      WHERE rt = ? 
+        AND role = 'verifikator'
+        AND verifikator_level = 'rt'
+      LIMIT 1
+    `, [rtNumber]);
+
+    if (rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'RT tidak ditemukan'
+      });
+    }
+
+    res.json({
+      success: true,
+      nama: rows[0].nama_lengkap
+    });
+  } catch (error) {
+    console.error('Error getting RT name:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server'
+    });
+  }
+};
+
+// Get RW name by RW number
+exports.getRWName = async (req, res) => {
+  try {
+    const { rwNumber } = req.params;
+    
+    const [rows] = await db.query(`
+      SELECT nama_lengkap 
+      FROM users 
+      WHERE rw = ? 
+        AND role = 'verifikator'
+        AND verifikator_level = 'rw'
+      LIMIT 1
+    `, [rwNumber]);
+
+    if (rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'RW tidak ditemukan'
+      });
+    }
+
+    res.json({
+      success: true,
+      nama: rows[0].nama_lengkap
+    });
+  } catch (error) {
+    console.error('Error getting RW name:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server'
     });
   }
 };

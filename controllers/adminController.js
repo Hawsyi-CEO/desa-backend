@@ -125,7 +125,11 @@ exports.getJenisSuratById = async (req, res) => {
 // Create jenis surat
 exports.createJenisSurat = async (req, res) => {
   try {
-    const { nama_surat, kode_surat, deskripsi, format_nomor, kalimat_pembuka, template_konten, fields, require_verification } = req.body;
+    const { 
+      nama_surat, kode_surat, deskripsi, format_nomor, kalimat_pembuka, 
+      template_konten, fields, require_verification,
+      penandatangan, layout_ttd, show_materai, paper_size
+    } = req.body;
 
     // Validasi
     if (!nama_surat || !kode_surat || !template_konten) {
@@ -136,8 +140,12 @@ exports.createJenisSurat = async (req, res) => {
     }
 
     const [result] = await db.query(
-      `INSERT INTO jenis_surat (nama_surat, kode_surat, deskripsi, format_nomor, kalimat_pembuka, template_konten, fields, require_verification, created_by) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO jenis_surat (
+        nama_surat, kode_surat, deskripsi, format_nomor, kalimat_pembuka, 
+        template_konten, fields, require_verification, 
+        penandatangan, layout_ttd, show_materai, paper_size, created_by
+      ) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         nama_surat, 
         kode_surat, 
@@ -146,7 +154,11 @@ exports.createJenisSurat = async (req, res) => {
         kalimat_pembuka || 'Yang bertanda tangan di bawah ini, Kepala Desa Cibadak, dengan ini menerangkan bahwa :',
         template_konten, 
         JSON.stringify(fields), 
-        require_verification, 
+        require_verification,
+        JSON.stringify(penandatangan || [{jabatan: 'kepala_desa', label: 'Kepala Desa Cibadak', posisi: 'kanan_bawah', required: true}]),
+        layout_ttd || '1_kanan',
+        show_materai || false,
+        paper_size || 'a4',
         req.user.id
       ]
     );
@@ -180,7 +192,11 @@ exports.createJenisSurat = async (req, res) => {
 exports.updateJenisSurat = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nama_surat, kode_surat, deskripsi, format_nomor, kalimat_pembuka, template_konten, fields, require_verification, status } = req.body;
+    const { 
+      nama_surat, kode_surat, deskripsi, format_nomor, kalimat_pembuka, 
+      template_konten, fields, require_verification, status,
+      penandatangan, layout_ttd, show_materai, paper_size
+    } = req.body;
 
     // 🔧 FIX: Jika require_verification diset false, otomatis set RT/RW verification juga false
     // Ini mencegah database inconsistency
@@ -191,11 +207,16 @@ exports.updateJenisSurat = async (req, res) => {
     console.log(`   require_verification: ${require_verification}`);
     console.log(`   require_rt_verification: ${requireRT}`);
     console.log(`   require_rw_verification: ${requireRW}`);
+    console.log(`   layout_ttd: ${layout_ttd}`);
+    console.log(`   penandatangan count: ${penandatangan ? penandatangan.length : 0}`);
+    console.log(`   paper_size: ${paper_size || 'a4'}`);
 
     await db.query(
       `UPDATE jenis_surat 
-       SET nama_surat = ?, kode_surat = ?, deskripsi = ?, format_nomor = ?, kalimat_pembuka = ?, template_konten = ?, fields = ?, 
-           require_verification = ?, require_rt_verification = ?, require_rw_verification = ?, status = ?
+       SET nama_surat = ?, kode_surat = ?, deskripsi = ?, format_nomor = ?, kalimat_pembuka = ?, 
+           template_konten = ?, fields = ?, require_verification = ?, require_rt_verification = ?, 
+           require_rw_verification = ?, status = ?, penandatangan = ?, layout_ttd = ?, show_materai = ?, 
+           paper_size = ?
        WHERE id = ?`,
       [
         nama_surat, 
@@ -208,7 +229,11 @@ exports.updateJenisSurat = async (req, res) => {
         require_verification, 
         requireRT,
         requireRW,
-        status, 
+        status,
+        JSON.stringify(penandatangan || [{jabatan: 'kepala_desa', label: 'Kepala Desa Cibadak', posisi: 'kanan_bawah', required: true}]),
+        layout_ttd || '1_kanan',
+        show_materai || false,
+        paper_size || 'a4',
         id
       ]
     );
@@ -803,10 +828,10 @@ exports.createUser = async (req, res) => {
       tempat_lahir, tanggal_lahir, jenis_kelamin,
       agama, pekerjaan, pendidikan, status_perkawinan,
       golongan_darah, no_kk, nama_kepala_keluarga,
-      hubungan_keluarga
+      hubungan_keluarga, verifikator_level
     } = req.body;
 
-    console.log('Creating new user:', { nik, nama, email, role, rt, rw });
+    console.log('Creating new user:', { nik, nama, email, role, verifikator_level, rt, rw });
 
     // Validasi required fields - email TIDAK wajib
     if (!nik || !nama || !role) {
@@ -886,6 +911,7 @@ exports.createUser = async (req, res) => {
       no_kk: no_kk || null,
       nama_kepala_keluarga: nama_kepala_keluarga || null,
       hubungan_keluarga: hubungan_keluarga || null,
+      verifikator_level: verifikator_level || null,
       status: status || 'aktif'
     };
 
@@ -897,15 +923,15 @@ exports.createUser = async (req, res) => {
         tempat_lahir, tanggal_lahir, jenis_kelamin,
         agama, pekerjaan, pendidikan, status_perkawinan,
         golongan_darah, no_kk, nama_kepala_keluarga,
-        hubungan_keluarga, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        hubungan_keluarga, verifikator_level, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         nik, nama, cleanData.email, hashedPassword, role, cleanData.status,
         cleanData.no_telepon, cleanData.alamat, cleanData.rt, cleanData.rw, cleanData.dusun,
         cleanData.tempat_lahir, cleanData.tanggal_lahir, cleanData.jenis_kelamin,
         cleanData.agama, cleanData.pekerjaan, cleanData.pendidikan, cleanData.status_perkawinan,
         cleanData.golongan_darah, cleanData.no_kk, cleanData.nama_kepala_keluarga,
-        cleanData.hubungan_keluarga
+        cleanData.hubungan_keluarga, cleanData.verifikator_level
       ]
     );
 
@@ -1058,9 +1084,9 @@ exports.deleteUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, status, email, rt, rw } = req.body;
+    const { role, status, email, rt, rw, verifikator_level } = req.body;
 
-    console.log('Updating user ID:', id, { role, status, email, rt, rw });
+    console.log('Updating user ID:', id, { role, status, email, rt, rw, verifikator_level });
 
     // Check if user exists
     const [users] = await db.query(
@@ -1129,6 +1155,11 @@ exports.updateUser = async (req, res) => {
     if (rw !== undefined) {
       updates.push('rw = ?');
       values.push(rw || null);
+    }
+
+    if (verifikator_level !== undefined) {
+      updates.push('verifikator_level = ?');
+      values.push(verifikator_level || null);
     }
 
     if (updates.length === 0) {
