@@ -855,9 +855,17 @@ exports.createUser = async (req, res) => {
 
     // Hash password
     const bcrypt = require('bcryptjs');
+    // Password default berdasarkan role
+    let defaultPassword = 'password123'; // untuk warga
+    if (role === 'verifikator') {
+      defaultPassword = 'verifikator123';
+    } else if (role === 'admin' || role === 'super_admin') {
+      defaultPassword = 'admin123';
+    }
+    
     const hashedPassword = password 
       ? await bcrypt.hash(password, 10)
-      : await bcrypt.hash('password123', 10);
+      : await bcrypt.hash(defaultPassword, 10);
 
     // Convert empty strings to null
     const cleanData = {
