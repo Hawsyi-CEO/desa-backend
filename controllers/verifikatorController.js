@@ -249,7 +249,7 @@ exports.approveSurat = async (req, res) => {
       [
         surat.user_id, 
         id, 
-        'verified', 
+        'approved', 
         `Surat Disetujui ${verifikator_level.toUpperCase()}`,
         notifMessage
       ]

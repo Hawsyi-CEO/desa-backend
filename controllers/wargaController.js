@@ -260,7 +260,7 @@ exports.createPengajuanSurat = async (req, res) => {
     await db.query(
       `INSERT INTO notifications (user_id, pengajuan_id, type, title, message) 
        VALUES (?, ?, ?, ?, ?)`,
-      [userId, pengajuanId, 'created', 'Surat Berhasil Diajukan', notifMessage]
+      [userId, pengajuanId, 'info', 'Surat Berhasil Diajukan', notifMessage]
     );
 
     console.log('✅ Pengajuan surat berhasil dibuat:', {

@@ -240,7 +240,7 @@ exports.getRTName = async (req, res) => {
     const { rtNumber } = req.params;
     
     const [rows] = await db.query(`
-      SELECT nama_lengkap 
+      SELECT nama 
       FROM users 
       WHERE rt = ? 
         AND role = 'verifikator'
@@ -257,7 +257,7 @@ exports.getRTName = async (req, res) => {
 
     res.json({
       success: true,
-      nama: rows[0].nama_lengkap
+      nama: rows[0].nama
     });
   } catch (error) {
     console.error('Error getting RT name:', error);
@@ -274,7 +274,7 @@ exports.getRWName = async (req, res) => {
     const { rwNumber } = req.params;
     
     const [rows] = await db.query(`
-      SELECT nama_lengkap 
+      SELECT nama 
       FROM users 
       WHERE rw = ? 
         AND role = 'verifikator'
@@ -291,7 +291,7 @@ exports.getRWName = async (req, res) => {
 
     res.json({
       success: true,
-      nama: rows[0].nama_lengkap
+      nama: rows[0].nama
     });
   } catch (error) {
     console.error('Error getting RW name:', error);
