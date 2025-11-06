@@ -1050,9 +1050,9 @@ exports.deleteUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, status, rt, rw } = req.body;
+    const { role, status, email, rt, rw } = req.body;
 
-    console.log('Updating user ID:', id, { role, status, rt, rw });
+    console.log('Updating user ID:', id, { role, status, email, rt, rw });
 
     // Check if user exists
     const [users] = await db.query(
@@ -1106,6 +1106,11 @@ exports.updateUser = async (req, res) => {
     if (status !== undefined) {
       updates.push('status = ?');
       values.push(status);
+    }
+
+    if (email !== undefined) {
+      updates.push('email = ?');
+      values.push(email || null);
     }
 
     if (rt !== undefined) {
