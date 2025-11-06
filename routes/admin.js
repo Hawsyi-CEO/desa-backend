@@ -13,6 +13,7 @@ router.use(authMiddleware);
 // (filtering by RT/RW is handled in controller based on user role)
 router.get('/warga', roleMiddleware('super_admin', 'admin'), wargaController.getAllWarga);
 router.get('/warga/statistik', roleMiddleware('super_admin', 'admin'), wargaController.getStatistik);
+router.get('/warga/rt-rw-list', roleMiddleware('super_admin', 'admin'), wargaController.getAvailableRtRw);
 router.get('/warga/:id', roleMiddleware('super_admin', 'admin'), wargaController.getWargaById);
 router.put('/warga/:id', roleMiddleware('super_admin', 'admin'), wargaController.updateWarga);
 

@@ -806,7 +806,7 @@ exports.createUser = async (req, res) => {
       hubungan_keluarga
     } = req.body;
 
-    console.log('Creating new user:', { nik, nama, email, role });
+    console.log('Creating new user:', { nik, nama, email, role, rt, rw });
 
     // Validasi required fields - email TIDAK wajib
     if (!nik || !nama || !role) {

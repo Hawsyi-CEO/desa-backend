@@ -1343,3 +1343,37 @@ exports.markNotificationAsRead = async (req, res) => {
     });
   }
 };
+
+// Get available RT/RW list from warga data
+exports.getAvailableRtRw = async (req, res) => {
+  try {
+    // Get distinct RT and RW from warga table
+    const [rtList] = await db.query(`
+      SELECT DISTINCT rt 
+      FROM warga 
+      WHERE rt IS NOT NULL AND rt != ''
+      ORDER BY CAST(rt AS UNSIGNED), rt
+    `);
+    
+    const [rwList] = await db.query(`
+      SELECT DISTINCT rw 
+      FROM warga 
+      WHERE rw IS NOT NULL AND rw != ''
+      ORDER BY CAST(rw AS UNSIGNED), rw
+    `);
+    
+    res.json({
+      success: true,
+      data: {
+        rt: rtList.map(item => item.rt),
+        rw: rwList.map(item => item.rw)
+      }
+    });
+  } catch (error) {
+    console.error('Error get available RT/RW:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengambil data RT/RW'
+    });
+  }
+};
